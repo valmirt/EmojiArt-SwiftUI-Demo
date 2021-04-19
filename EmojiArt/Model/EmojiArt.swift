@@ -34,7 +34,7 @@ struct EmojiArt: Codable {
         emojis.append(Emoji(text: text, x: x, y: y, size: size, id: uniqueEmojiId))
     }
     
-    struct Emoji: Identifiable, Codable {
+    struct Emoji: Identifiable, Hashable, Codable {
         let text: String
         var x: Int
         var y: Int
