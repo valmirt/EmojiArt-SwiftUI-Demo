@@ -15,6 +15,8 @@ struct ContentView: View {
     @State private var steadyStatePanOffset: CGSize = .zero
     @GestureState private var gesturePanOffset: CGSize = .zero
     
+    @State private var emojiSelected: Set<EmojiArt.Emoji> = []
+    
     private var zoomScale: CGFloat {
         steadyStateZoomScale * gestureZoomScale
     }
@@ -64,9 +66,11 @@ struct ContentView: View {
                         .gesture(doubleTapToZoom(in: geometry.size))
                     
                     ForEach(viewModel.emojis) { emoji in
-                        Text(emoji.text)
-                            .font(animatableWithSize: emoji.fontSize * zoomScale)
+                        EmojiView(text: emoji.text, isSelected: emojiSelected.contains(matching: emoji))
+                            .frame(width: emoji.fontSize, height: emoji.fontSize)
+                            .scaleEffect(zoomScale)
                             .position(position(for: emoji, in: geometry.size))
+                            .onTapGesture { handlerEmojiSelection(with: emoji) }
                     }
                 }
                 .clipped()
@@ -84,6 +88,14 @@ struct ContentView: View {
                     return drop(providers: providers, at: location)
                 }
             }
+        }
+    }
+    
+    private func handlerEmojiSelection(with emoji: EmojiArt.Emoji) {
+        if emojiSelected.contains(matching: emoji) {
+            emojiSelected.remove(emoji)
+        } else {
+            emojiSelected.insert(emoji)
         }
     }
     
