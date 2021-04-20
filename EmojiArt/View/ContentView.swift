@@ -10,28 +10,43 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var viewModel: EmojiArtViewModel
     
-    @State private var steadyStateZoomScale: CGFloat = 1.0
     @GestureState private var gestureZoomScale: CGFloat = 1.0
-    @State private var steadyStatePanOffset: CGSize = .zero
+    @GestureState private var gestureZoomEmojiScale: CGFloat = 1.0
     @GestureState private var gesturePanOffset: CGSize = .zero
-    
+    @GestureState private var gesturePanEmojisOffset: CGSize = .zero
     @State private var emojiSelected: Set<EmojiArt.Emoji> = []
+    @State private var steadyStateZoomScale: CGFloat = 1.0
+    @State private var steadyStateZoomEmojiScale: CGFloat = 1.0
+    @State private var steadyStatePanOffset: CGSize = .zero
     
     private var zoomScale: CGFloat {
         steadyStateZoomScale * gestureZoomScale
     }
-    
+    private var zoomEmojiScale: CGFloat {
+        steadyStateZoomEmojiScale * gestureZoomEmojiScale
+    }
     private var panOffset: CGSize {
         (steadyStatePanOffset + gesturePanOffset) * zoomScale
     }
     
     private var zoomGesture: some Gesture {
-        MagnificationGesture()
-            .updating($gestureZoomScale) { latestGestureScale, gestureZoomScale, _ in
-                gestureZoomScale = latestGestureScale
+        if emojiSelected.isEmpty {
+            return MagnificationGesture()
+                .updating($gestureZoomScale) { latestGestureScale, gestureZoomScale, _ in
+                    gestureZoomScale = latestGestureScale
+                }
+                .onEnded { finalGestureScale in
+                    steadyStateZoomScale *= finalGestureScale
+                }
+        }
+        return MagnificationGesture()
+            .updating($gestureZoomEmojiScale) { latestGestureScale, gestureZoomEmojiScale, _ in
+                gestureZoomEmojiScale = latestGestureScale
             }
             .onEnded { finalGestureScale in
-                steadyStateZoomScale *= finalGestureScale
+                emojiSelected.forEach { emoji in
+                    viewModel.scaleEmoji(emoji, by: finalGestureScale)
+                }
             }
     }
     
@@ -44,7 +59,7 @@ struct ContentView: View {
                 steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
             }
     }
-    
+
     var body: some View {
         VStack {
             ScrollView(.horizontal) {
@@ -66,10 +81,13 @@ struct ContentView: View {
                         .gesture(doubleTapToZoom(in: geometry.size))
                     
                     ForEach(viewModel.emojis) { emoji in
-                        EmojiView(text: emoji.text, isSelected: emojiSelected.contains(matching: emoji))
+                        let isSelected = emojiSelected.contains(matching: emoji)
+                        EmojiView(text: emoji.text, isSelected: isSelected)
+                            .scaleEffect(isSelected ? zoomEmojiScale : 1)
                             .frame(width: emoji.fontSize, height: emoji.fontSize)
-                            .scaleEffect(zoomScale)
                             .position(position(for: emoji, in: geometry.size))
+                            .gesture(dragEmojisGesture(isSelected: isSelected))
+                            .gesture(longPressToRemove(emoji, isSelected: isSelected))
                             .onTapGesture { handlerEmojiSelection(with: emoji) }
                     }
                 }
@@ -88,7 +106,36 @@ struct ContentView: View {
                     return drop(providers: providers, at: location)
                 }
             }
+            .onTapGesture { emojiSelected.removeAll() }
         }
+    }
+    
+    private func dragEmojisGesture(isSelected: Bool) -> some Gesture {
+        return DragGesture()
+            .updating($gesturePanEmojisOffset) { latestDragGestureValue, gesturePanEmojisOffset, _ in
+                if isSelected {
+                    gesturePanEmojisOffset = latestDragGestureValue.translation / zoomScale
+                }
+            }
+            .onEnded { finalDragGestureValue in
+                if isSelected {
+                    let distanceDragged = finalDragGestureValue.translation / zoomScale
+                    for emoji in emojiSelected {
+                        withAnimation {
+                            viewModel.moveEmoji(emoji, by: distanceDragged)
+                        }
+                    }
+                }
+            }
+    }
+    
+    private func longPressToRemove(_ emoji: EmojiArt.Emoji, isSelected: Bool) -> some Gesture {
+        LongPressGesture(minimumDuration: 1)
+            .onEnded { _ in
+                if isSelected {
+                    viewModel.removeEmoji(emoji)
+                }
+            }
     }
     
     private func handlerEmojiSelection(with emoji: EmojiArt.Emoji) {

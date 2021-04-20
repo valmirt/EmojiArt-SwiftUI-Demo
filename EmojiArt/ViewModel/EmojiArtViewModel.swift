@@ -31,6 +31,12 @@ final class EmojiArtViewModel: ObservableObject {
         model.addEmoji(emoji, x: Int(location.x), y: Int(location.y), size: Int(size))
     }
     
+    func removeEmoji(_ emoji: EmojiArt.Emoji) {
+        if let index = model.emojis.firstIndex(matching: emoji) {
+            model.emojis.remove(at: index)
+        }
+    }
+    
     func moveEmoji(_ emoji: EmojiArt.Emoji, by offset: CGSize) {
         if let index = model.emojis.firstIndex(matching: emoji) {
             model.emojis[index].x += Int(offset.width)
