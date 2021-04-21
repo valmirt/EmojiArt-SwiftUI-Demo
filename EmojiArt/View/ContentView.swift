@@ -63,6 +63,11 @@ struct ContentView: View {
                 steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
             }
     }
+    
+    init(viewModel: EmojiArtViewModel) {
+        self.viewModel = viewModel
+        _chosenPalette = State(wrappedValue: viewModel.defaultPalette)
+    }
 
     var body: some View {
         VStack {
@@ -77,7 +82,6 @@ struct ContentView: View {
                         }
                     }
                 }
-                .onAppear { chosenPalette = viewModel.defaultPalette }
                 .padding(.horizontal)
             }
             
