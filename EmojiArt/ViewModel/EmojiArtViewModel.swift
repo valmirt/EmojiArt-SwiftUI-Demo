@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import Combine
 
 final class EmojiArtViewModel: ObservableObject {
-    private static let untitled = "EmojiArtViewModel.Untitled"
     static let palette: String = "🍎🍄🪖🏀"
+    private static let untitled = "EmojiArtViewModel.Untitled"
+    private var fetchImageCancellable: AnyCancellable?
+    
     @Published private var model: EmojiArt = EmojiArt() {
         didSet {
             UserDefaults.standard.set(model.json, forKey: EmojiArtViewModel.untitled)
@@ -19,6 +22,13 @@ final class EmojiArtViewModel: ObservableObject {
     
     var emojis: [EmojiArt.Emoji] {
         model.emojis
+    }
+    var backgroundURL: URL? {
+        get { model.backgroundURL }
+        set {
+            model.backgroundURL = newValue?.imageURL
+            fetchBackgroundImageData()
+        }
     }
     
     init() {
@@ -50,23 +60,15 @@ final class EmojiArtViewModel: ObservableObject {
         }
     }
     
-    func setBackgroundURL(_ url: URL?) {
-        model.backgroundURL = url?.imageURL
-        fetchBackgroundImageData()
-    }
-    
     private func fetchBackgroundImageData() {
         backgroundImage = nil
         if let url = model.backgroundURL {
-            DispatchQueue.global(qos: .userInitiated).async {
-                if let imageData = try? Data(contentsOf: url) {
-                    DispatchQueue.main.async {
-                        if url == self.model.backgroundURL {
-                            self.backgroundImage = UIImage(data: imageData)
-                        }
-                    }
-                }
-            }
+            fetchImageCancellable?.cancel()
+            let publisher = URLSession.shared.dataTaskPublisher(for: url)
+                .map { data, _ in UIImage(data: data) }
+                .receive(on: DispatchQueue.main)
+                .replaceError(with: nil)
+            fetchImageCancellable = publisher.assign(to: \.backgroundImage, on: self)
         }
     }
 }

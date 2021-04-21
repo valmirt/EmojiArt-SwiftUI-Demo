@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var steadyStateZoomScale: CGFloat = 1.0
     @State private var steadyStateZoomEmojiScale: CGFloat = 1.0
     @State private var steadyStatePanOffset: CGSize = .zero
+    @State private var chosenPalette: String = ""
     
     private var zoomScale: CGFloat {
         steadyStateZoomScale * gestureZoomScale
@@ -27,6 +28,9 @@ struct ContentView: View {
     }
     private var panOffset: CGSize {
         (steadyStatePanOffset + gesturePanOffset) * zoomScale
+    }
+    var isLoading: Bool {
+        viewModel.backgroundURL != nil && viewModel.backgroundImage == nil
     }
     
     private var zoomGesture: some Gesture {
@@ -62,17 +66,20 @@ struct ContentView: View {
 
     var body: some View {
         VStack {
-            ScrollView(.horizontal) {
-                HStack {
-                    ForEach(EmojiArtViewModel.palette.map { String($0) }, id: \.self) { emoji in
-                        Text(emoji)
-                            .font(.system(size: defaultEmojiSize))
-                            .onDrag { NSItemProvider(object: emoji as NSString) }
+            HStack {
+                PaletteChooser(viewModel: viewModel, chosenPalette: $chosenPalette)
+                ScrollView(.horizontal) {
+                    HStack {
+                        ForEach(chosenPalette.map { String($0) }, id: \.self) { emoji in
+                            Text(emoji)
+                                .font(.system(size: defaultEmojiSize))
+                                .onDrag { NSItemProvider(object: emoji as NSString) }
+                        }
                     }
                 }
-                
+                .onAppear { chosenPalette = viewModel.defaultPalette }
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
             
             GeometryReader { geometry in
                 ZStack {
@@ -80,21 +87,30 @@ struct ContentView: View {
                         .overlay(Image(uiImage: viewModel.backgroundImage ?? UIImage()).scaleEffect(zoomScale).offset(panOffset))
                         .gesture(doubleTapToZoom(in: geometry.size))
                     
-                    ForEach(viewModel.emojis) { emoji in
-                        let isSelected = emojiSelected.contains(matching: emoji)
-                        EmojiView(text: emoji.text, isSelected: isSelected)
-                            .scaleEffect(isSelected ? zoomEmojiScale : 1)
-                            .frame(width: emoji.fontSize, height: emoji.fontSize)
-                            .position(position(for: emoji, in: geometry.size))
-                            .gesture(dragEmojisGesture(isSelected: isSelected))
-                            .gesture(longPressToRemove(emoji, isSelected: isSelected))
-                            .onTapGesture { handlerEmojiSelection(with: emoji) }
+                    if isLoading {
+                        Image(systemName: "hourglass")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 60, height: 60)
+                            .spinning()
+                    } else {
+                        ForEach(viewModel.emojis) { emoji in
+                            let isSelected = emojiSelected.contains(matching: emoji)
+                            EmojiView(text: emoji.text, isSelected: isSelected)
+                                .scaleEffect(isSelected ? zoomEmojiScale : 1)
+                                .frame(width: emoji.fontSize, height: emoji.fontSize)
+                                .position(position(for: emoji, in: geometry.size))
+                                .gesture(dragEmojisGesture(isSelected: isSelected))
+                                .gesture(longPressToRemove(emoji, isSelected: isSelected))
+                                .onTapGesture { handlerEmojiSelection(with: emoji) }
+                        }
                     }
                 }
                 .clipped()
                 .gesture(panGesture)
                 .gesture(zoomGesture)
                 .ignoresSafeArea()
+                .onReceive(viewModel.$backgroundImage) { image in zoomToFit(image, in: geometry.size) }
                 .onDrop(of: ["public.image", "public.text"], isTargeted: nil) { providers, location in
                     var location = geometry.convert(location, from: .global)
                     location = CGPoint(
@@ -174,7 +190,7 @@ struct ContentView: View {
     
     private func drop(providers: [NSItemProvider], at location: CGPoint) -> Bool {
         var found = providers.loadFirstObject(ofType: URL.self) { url in
-            viewModel.setBackgroundURL(url)
+            viewModel.backgroundURL = url
         }
         if  !found {
             found = providers.loadFirstObject(ofType: String.self) { string in
