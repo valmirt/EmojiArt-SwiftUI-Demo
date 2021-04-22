@@ -142,6 +142,7 @@ struct EmojiArtView: View {
                     )
                 }
             }
+            .zIndex(-1)
             .onTapGesture { emojiSelected.removeAll() }
         }
     }
