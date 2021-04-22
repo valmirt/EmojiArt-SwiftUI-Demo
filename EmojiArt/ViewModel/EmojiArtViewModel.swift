@@ -8,14 +8,18 @@
 import SwiftUI
 import Combine
 
-final class EmojiArtViewModel: ObservableObject {
+final class EmojiArtViewModel: ObservableObject, Hashable, Identifiable {
+    let id: UUID
     static let palette: String = "🍎🍄🪖🏀"
-    private static let untitled = "EmojiArtViewModel.Untitled"
+    private let defaultsKey: String!
     private var fetchImageCancellable: AnyCancellable?
+    @Published var steadyStateZoomScale: CGFloat = 1.0
+    @Published var steadyStateZoomEmojiScale: CGFloat = 1.0
+    @Published var steadyStatePanOffset: CGSize = .zero
     
     @Published private var model: EmojiArt = EmojiArt() {
         didSet {
-            UserDefaults.standard.set(model.json, forKey: EmojiArtViewModel.untitled)
+            UserDefaults.standard.set(model.json, forKey: defaultsKey)
         }
     }
     @Published private(set) var backgroundImage: UIImage?
@@ -31,9 +35,19 @@ final class EmojiArtViewModel: ObservableObject {
         }
     }
     
-    init() {
-        model = EmojiArt(json: UserDefaults.standard.data(forKey: EmojiArtViewModel.untitled)) ?? EmojiArt()
+    init(id: UUID? = nil) {
+        self.id = id ?? UUID()
+        defaultsKey = "EmojiArtViewModel.\(self.id.uuidString)"
+        model = EmojiArt(json: UserDefaults.standard.data(forKey: defaultsKey)) ?? EmojiArt()
         fetchBackgroundImageData()
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: EmojiArtViewModel, rhs: EmojiArtViewModel) -> Bool {
+        lhs.id == rhs.id
     }
     
     //MARK: - Intent(s)

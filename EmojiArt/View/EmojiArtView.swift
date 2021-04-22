@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  EmojiArtView.swift
 //  EmojiArt
 //
 //  Created by Valmir Junior on 18/04/21.
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct ContentView: View {
+struct EmojiArtView: View {
     @ObservedObject var viewModel: EmojiArtViewModel
     
     @GestureState private var gestureZoomScale: CGFloat = 1.0
@@ -15,19 +15,17 @@ struct ContentView: View {
     @GestureState private var gesturePanOffset: CGSize = .zero
     @GestureState private var gesturePanEmojisOffset: CGSize = .zero
     @State private var emojiSelected: Set<EmojiArt.Emoji> = []
-    @State private var steadyStateZoomScale: CGFloat = 1.0
-    @State private var steadyStateZoomEmojiScale: CGFloat = 1.0
-    @State private var steadyStatePanOffset: CGSize = .zero
     @State private var chosenPalette: String = ""
+    @State private var explainBackgroundPaste = false
     
     private var zoomScale: CGFloat {
-        steadyStateZoomScale * gestureZoomScale
+        viewModel.steadyStateZoomScale * gestureZoomScale
     }
     private var zoomEmojiScale: CGFloat {
-        steadyStateZoomEmojiScale * gestureZoomEmojiScale
+        viewModel.steadyStateZoomEmojiScale * gestureZoomEmojiScale
     }
     private var panOffset: CGSize {
-        (steadyStatePanOffset + gesturePanOffset) * zoomScale
+        (viewModel.steadyStatePanOffset + gesturePanOffset) * zoomScale
     }
     var isLoading: Bool {
         viewModel.backgroundURL != nil && viewModel.backgroundImage == nil
@@ -40,7 +38,7 @@ struct ContentView: View {
                     gestureZoomScale = latestGestureScale
                 }
                 .onEnded { finalGestureScale in
-                    steadyStateZoomScale *= finalGestureScale
+                    viewModel.steadyStateZoomScale *= finalGestureScale
                 }
         }
         return MagnificationGesture()
@@ -60,7 +58,7 @@ struct ContentView: View {
                 gesturePanOffset = latestDragGestureValue.translation / zoomScale
             }
             .onEnded { finalDragGestureValue in
-                steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
+                viewModel.steadyStatePanOffset = viewModel.steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
             }
     }
     
@@ -125,6 +123,24 @@ struct ContentView: View {
                     location = CGPoint(x: location.x / zoomScale, y: location.y / zoomScale)
                     return drop(providers: providers, at: location)
                 }
+                .toolbar {
+                    ToolbarItemGroup(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            if let url = UIPasteboard.general.url {
+                                viewModel.backgroundURL = url
+                            } else {
+                                explainBackgroundPaste = true
+                            }
+                        }, label: { Image(systemName: "doc.on.clipboard").imageScale(.large) })
+                    }
+                }
+                .alert(isPresented: $explainBackgroundPaste) {
+                    Alert(
+                        title: Text("Paste Background"),
+                        message: Text("Copy the URL of an image to the clip board and touch this button to make it the background of your document"),
+                        dismissButton: .default(Text("Ok"))
+                    )
+                }
             }
             .onTapGesture { emojiSelected.removeAll() }
         }
@@ -176,11 +192,11 @@ struct ContentView: View {
     }
     
     private func zoomToFit(_ image: UIImage?, in size: CGSize) {
-        if let image = image, image.size.width > 0, image.size.height > 0 {
+        if let image = image, image.size.width > 0, image.size.height > 0, size.height > 0, size.width > 0 {
             let hZoom = size.width / image.size.width
             let vZoom = size.height / image.size.height
-            steadyStatePanOffset = .zero
-            steadyStateZoomScale = min(hZoom, vZoom)
+            viewModel.steadyStatePanOffset = .zero
+            viewModel.steadyStateZoomScale = min(hZoom, vZoom)
         }
     }
     
@@ -209,7 +225,7 @@ struct ContentView: View {
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView(viewModel: EmojiArtViewModel())
+        EmojiArtView(viewModel: EmojiArtViewModel())
             
     }
 }
